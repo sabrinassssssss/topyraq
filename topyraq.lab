@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Уход за растением</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+        video { width: 100%; max-width: 400px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); }
+        button { padding: 10px; margin: 10px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #218838; }
+        p { font-size: 18px; }
+        table { margin: auto; border-collapse: collapse; width: 80%; background: white; }
+        th, td { border: 1px solid black; padding: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Анализ состояния растения</h1>
+    <video id="camera" autoplay></video>
+    <button onclick="captureImage()">Сделать фото</button>
+    <canvas id="snapshot" style="display:none;"></canvas>
+    <h2>Данные датчика влажности</h2>
+    <button onclick="connectToSensor()">Подключить датчик</button>
+    <p id="moisture">Влажность: -</p>
+    <h2>Рекомендации</h2>
+    <p id="advice">Здесь появятся советы...</p>
+    <h2>Календарь полива</h2>
+    <button onclick="addWateringRecord()">Добавить запись о поливе</button>
+    <table>
+        <tr>
+            <th>Дата</th>
+            <th>Время</th>
+        </tr>
+        <tbody id="calendar"></tbody>
+    </table>
+    
+    <script>
+        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            document.getElementById('camera').srcObject = stream;
+        });
+
+        function captureImage() {
+            let video = document.getElementById('camera');
+            let canvas = document.getElementById('snapshot');
+            let context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            alert("Фото сделано! (Анализ можно добавить позже)");
+        }
+
+        async function connectToSensor() {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['battery_service']
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('battery_service');
+                const characteristic = await service.getCharacteristic('battery_level');
+
+                characteristic.addEventListener('characteristicvaluechanged', event => {
+                    let moisture = event.target.value.getUint8(0);
+                    document.getElementById('moisture').innerText = `Влажность: ${moisture}%`;
+                    updateAdvice(moisture);
+                });
+                await characteristic.startNotifications();
+                alert("Датчик подключен!");
+            } catch (error) {
+                alert("Ошибка: " + error);
+            }
+        }
+
+        function updateAdvice(moisture) {
+            let advice = document.getElementById('advice');
+            if (moisture < 30) {
+                advice.innerText = "Растение нуждается в поливе!";
+            } else if (moisture > 70) {
+                advice.innerText = "Слишком много воды, дайте почве подсохнуть.";
+            } else {
+                advice.innerText = "Влажность в норме.";
+            }
+        }
+
+        function addWateringRecord() {
+            let table = document.getElementById("calendar");
+            let row = table.insertRow();
+            let dateCell = row.insertCell(0);
+            let timeCell = row.insertCell(1);
+            let now = new Date();
+            dateCell.innerText = now.toLocaleDateString();
+            timeCell.innerText = now.toLocaleTimeString();
+        }
+    </script>
+</body>
+</html>
